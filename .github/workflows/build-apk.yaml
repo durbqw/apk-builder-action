@@ -1,5 +1,5 @@
 name: Build Android APK
-run-name: ${{ github.event.inputs.repository }} ${{ github.event.inputs.branchName && format('{0}', github.event.inputs.branchName) }} ${{ github.event.inputs.subdir && format('[/{0}]', github.event.inputs.subdir) }} :${{ github.event.inputs.taskName }}
+run-name: Build - ${{ github.event.inputs.repository }}
 
 on:
   workflow_dispatch:
@@ -7,29 +7,25 @@ on:
       repository:
         description: "Git repository URL"
         required: true
-        default: "https://github.com/android/sunflower"
+        default: "https://github.com"
       branchName:
-        description: "Git branch name [Optional]"
+        description: "Branch [Optional]"
         required: false
-        default: ""
+        default: "master"
       subdir:
-        description: "Relative subdirectory path when the project is nested [Optional]"
+        description: "Subdirectory (Use 'DodoBank')"
         required: false
-        default: ""
-      jdkVersion:
-        description: "OpenJDK version to use: 8 / 11 / 17 etc."
-        required: false
-        default: "17"
+        default: "DodoBank"
       taskName:
-        description: "build.gradle task name: assembleDebug, assembleRelease, etc."
+        description: "Task: assembleDebug"
         required: false
-        default: "assembleRelease"
+        default: "assembleDebug"
 
 jobs:
   build:
-    runs-on: ubuntu-latest # Android SDK is built into this image
+    runs-on: ubuntu-latest
     steps:
-      - name: Setup JDK
+      - name: Setup JDK 8
         uses: actions/setup-java@v4
         with:
           distribution: "temurin"
@@ -37,40 +33,19 @@ jobs:
 
       - name: Clone project
         run: |
-          if [ ! -f "gradlew" ]; then 
-            gradle wrapper --gradle-version 4.10.3
-          fi
-          chmod +x gradlew
+          git clone --recurse-submodules --depth=1 --branch ${{ github.event.inputs.branchName }} ${{ github.event.inputs.repository }} workspace
 
       - name: Build APK
         working-directory: ./workspace/${{ github.event.inputs.subdir }}
         run: |
-          if [ ! -f "gradlew" ]; then gradle wrapper; fi
+          # Forzar Gradle antiguo para compatibilidad con 2017
+          gradle wrapper --gradle-version 4.10.3
           chmod +x gradlew
+          
+          # Ejecutar la compilación
+          ./gradlew ${{ github.event.inputs.taskName }} --stacktrace
 
-          if [[ "${{ github.event.inputs.taskName }}" == *Release* ]]; then
-            echo "Task contains 'Release', attempting to sign a release build with a debug key."
-
-            if [ ! -f "$HOME/.android/debug.keystore" ]; then
-              echo "Debug keystore not found. Creating one..."
-
-              keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "C=US, O=Android, CN=Android Debug"
-
-              mkdir -p $HOME/.android
-              mv debug.keystore $HOME/.android/debug.keystore
-            fi
-
-            ./gradlew ${{ github.event.inputs.taskName }} \
-              -Pandroid.injected.signing.store.file="$HOME/.android/debug.keystore" \
-              -Pandroid.injected.signing.store.password=android \
-              -Pandroid.injected.signing.key.alias=androiddebugkey \
-              -Pandroid.injected.signing.key.password=android \
-              --stacktrace
-          else
-            ./gradlew ${{ github.event.inputs.taskName }} --stacktrace
-          fi
-
-      - name: Upload the APK artifact with 1 day retention
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           path: workspace/**/*.apk
