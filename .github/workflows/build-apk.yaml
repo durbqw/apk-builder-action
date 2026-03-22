@@ -1,5 +1,6 @@
-name: Build Android APK
-run-name: Build - ${{ github.event.inputs.repository }}
+ - name: Clone project
+        run: |
+          git clone --recurse-submodules --depth=1 ${{ github.event.inputs.repository }} workspace
 
 on:
   workflow_dispatch:
