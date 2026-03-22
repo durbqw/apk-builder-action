@@ -33,15 +33,14 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: "temurin"
-          java-version: ${{ github.event.inputs.jdkVersion }}
+          java-version: "8"
 
       - name: Clone project
         run: |
-          if [[ -z "${{ github.event.inputs.branchName }}" ]]; then
-            git clone --recurse-submodules --depth=1 ${{ github.event.inputs.repository }} workspace
-          else
-            git clone --recurse-submodules --depth=1 --branch ${{ github.event.inputs.branchName }} ${{ github.event.inputs.repository }} workspace
+          if [ ! -f "gradlew" ]; then 
+            gradle wrapper --gradle-version 4.10.3
           fi
+          chmod +x gradlew
 
       - name: Build APK
         working-directory: ./workspace/${{ github.event.inputs.subdir }}
